@@ -67,7 +67,7 @@
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
             z-index: 9999;
             flex-direction: column;
             align-items: center;
@@ -82,8 +82,8 @@
 
     <div id="loadingOverlay">
         <div class="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent mb-4"></div>
-        <p class="text-lg font-bold">กำลังประมวลผลรูปภาพ...</p>
-        <p class="text-sm opacity-70 mt-2">หากไม่มีการดาวน์โหลดเกิดขึ้น โปรดรอสักครู่ ระบบจะเปิดรูปภาพในหน้าต่างใหม่<br>เพื่อให้คุณกดค้างที่รูปแล้วเลือก "Save Image"</p>
+        <p class="text-xl font-bold">กำลังสร้างรูปภาพ...</p>
+        <p class="text-sm opacity-80 mt-2">กรุณารอสักครู่ ระบบกำลังแปลงข้อมูลเป็นภาพความละเอียดสูง</p>
     </div>
 
     <div class="max-w-[98%] mx-auto py-4 md:py-8 max-w-screen-print">
@@ -137,7 +137,7 @@
                         
                         <div class="grid grid-cols-2 gap-2 mt-auto">
                             <button onclick="window.print()" class="col-span-2 bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 transition shadow-md flex items-center justify-center gap-2">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 00-2 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                                 บันทึกเป็น PDF
                             </button>
                             <button onclick="exportAsImage('png')" class="bg-emerald-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-emerald-700 transition shadow-sm">
@@ -335,51 +335,49 @@
             overlay.style.display = 'flex';
 
             try {
-                // Pre-processing: remove sticky for capture
+                // Pre-process for high quality capture
                 const stickyCols = document.querySelectorAll('.table-sticky-column');
                 stickyCols.forEach(col => col.style.position = 'static');
 
+                // Generate Canvas with extra settings for reliability
                 const canvas = await html2canvas(captureArea, {
-                    scale: 3, // Increase scale for high quality
+                    scale: 2.5, // บาลานซ์ระหว่างคุณภาพและขนาดไฟล์
                     useCORS: true,
                     backgroundColor: '#ffffff',
-                    logging: false,
-                    allowTaint: true
+                    logging: true,
+                    allowTaint: false,
+                    onclone: (clonedDoc) => {
+                        // Ensure cloned elements are visible
+                        const clonedArea = clonedDoc.getElementById('captureArea');
+                        clonedArea.style.borderRadius = '0';
+                    }
                 });
 
-                // Re-enable sticky
                 stickyCols.forEach(col => col.style.position = 'sticky');
 
                 const fileExt = format === 'png' ? 'png' : 'jpg';
                 const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
-                const dataUrl = canvas.toDataURL(mimeType, 0.95);
+                const dataUrl = canvas.toDataURL(mimeType, 0.92);
                 const fileName = `Car_Quote_${new Date().getTime()}.${fileExt}`;
 
-                // iPad Safe Download Method
-                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-                if (isIOS) {
-                    // Open in new window for iPad users to manual save
-                    const newWindow = window.open();
-                    newWindow.document.write(`<title>${fileName}</title><body style="margin:0; background:#333; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; font-family:sans-serif;">
-                        <p style="margin:20px;">กดค้างที่รูปภาพแล้วเลือก "บันทึกไปยังรูปภาพ" (Save to Photos)</p>
-                        <img src="${dataUrl}" style="max-width:100%; box-shadow:0 0 50px rgba(0,0,0,0.5);">
-                        <button onclick="window.close()" style="margin:20px; padding:10px 20px; border:none; border-radius:5px; background:white; color:black; font-weight:bold;">กลับหน้าโปรแกรม</button>
-                    </body>`);
-                } else {
-                    // PC / Android standard download
-                    const link = document.createElement('a');
-                    link.download = fileName;
-                    link.href = dataUrl;
-                    document.body.appendChild(link);
-                    link.click();
+                // Force Trigger Download
+                const link = document.createElement('a');
+                link.style.display = 'none';
+                link.href = dataUrl;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                
+                // Backup: if link click doesn't work (iOS Safari), open in new tab
+                setTimeout(() => {
                     document.body.removeChild(link);
-                }
+                    overlay.style.display = 'none';
+                }, 100);
 
             } catch (err) {
                 console.error("Export error:", err);
-            } finally {
                 overlay.style.display = 'none';
+                alert("ขออภัย! ไม่สามารถสร้างรูปภาพได้ในขณะนี้ โปรดตรวจสอบการอนุญาตใช้งานรูปภาพ");
             }
         }
 
@@ -387,7 +385,10 @@
             const file = e.target.files[0];
             if (file) {
                 const reader = new FileReader();
-                reader.onload = (ev) => document.getElementById(targetId).src = ev.target.result;
+                reader.onload = (ev) => {
+                    document.getElementById(targetId).src = ev.target.result;
+                    setTimeout(renderTable, 100);
+                };
                 reader.readAsDataURL(file);
             }
         }
@@ -423,12 +424,12 @@
             for(let i=0; i<activeCount; i++) {
                 const car = cars[i];
                 const card = document.createElement('div');
-                card.className = "bg-white p-3 rounded-xl border border-slate-200 h-fit";
+                card.className = "bg-white p-3 rounded-xl border border-slate-200 h-fit shadow-sm";
                 card.innerHTML = `
-                    <div class="mb-2"><span class="config-label">รุ่นรถ #${i+1}</span><input type="text" value="${car.model}" oninput="updateCar(${i}, 'model', this.value)" class="w-full text-xs font-bold border-b border-slate-100 pb-1 outline-none"></div>
+                    <div class="mb-2"><span class="config-label">รุ่นรถ #${i+1}</span><input type="text" value="${car.model}" oninput="updateCar(${i}, 'model', this.value)" class="w-full text-xs font-bold border-b border-slate-100 pb-1 outline-none focus:border-blue-400"></div>
                     <div class="grid grid-cols-2 gap-2">
-                        <div><span class="config-label">ราคา</span><input type="number" value="${car.price}" oninput="updateCar(${i}, 'price', this.value)" class="w-full text-xs p-1.5 bg-slate-50 rounded"></div>
-                        <div><span class="config-label">ดาวน์ (%)</span><input type="text" value="${car.downPercents}" oninput="updateCar(${i}, 'downPercents', this.value)" class="w-full text-xs p-1.5 bg-slate-50 rounded"></div>
+                        <div><span class="config-label">ราคา</span><input type="number" value="${car.price}" oninput="updateCar(${i}, 'price', this.value)" class="w-full text-xs p-1.5 bg-slate-50 rounded border border-transparent focus:border-blue-200 outline-none"></div>
+                        <div><span class="config-label">ดาวน์ (%)</span><input type="text" value="${car.downPercents}" oninput="updateCar(${i}, 'downPercents', this.value)" class="w-full text-xs p-1.5 bg-slate-50 rounded border border-transparent focus:border-blue-200 outline-none"></div>
                     </div>
                 `;
                 grid.appendChild(card);
@@ -449,11 +450,10 @@
 
         function applyStyles() {
             const bannerHeightValue = document.getElementById('sizeBannerHeight').value;
-            const bannerHeight = bannerHeightValue + 'px';
             const banner = document.getElementById('tableBanner');
-            banner.style.minHeight = bannerHeight;
+            banner.style.minHeight = bannerHeightValue + 'px';
             
-            const titleSize = Math.max(50, Math.min(120, bannerHeightValue / 6)) + 'px';
+            const titleSize = Math.max(40, Math.min(100, bannerHeightValue / 5)) + 'px';
             document.getElementById('displayModel').style.fontSize = titleSize;
 
             const avatar = document.getElementById('sellerAvatar');
@@ -479,26 +479,19 @@
             const headRow = document.getElementById('tableHeaderRow');
             const body = document.getElementById('tableBody');
             
-            const sizeH = document.getElementById('sizeTableHead');
-            const sizeD = document.getElementById('sizeTableData');
-            const weightD = document.getElementById('weightTableData');
-            const colorBg = document.getElementById('colorHeadBg');
-
-            if (!sizeH || !sizeD || !weightD || !colorBg) return;
-
-            const hFontSize = sizeH.value + 'px';
-            const dFontSize = sizeD.value + 'px';
-            const dWeight = weightD.value;
-            const hBgColor = colorBg.value;
+            const sizeH = document.getElementById('sizeTableHead').value + 'px';
+            const sizeD = document.getElementById('sizeTableData').value + 'px';
+            const weightD = document.getElementById('weightTableData').value;
+            const colorBg = document.getElementById('colorHeadBg').value;
             
-            let headHTML = `<th class="p-4 text-left table-sticky-column border-r min-w-[200px]" style="background-color:${hBgColor}; font-size:${hFontSize}">รายละเอียดรุ่น</th>
-                            <th class="p-4 text-right" style="background-color:${hBgColor}; font-size:${hFontSize}">ราคา</th>
-                            <th class="p-4 text-center" style="background-color:${hBgColor}; font-size:${hFontSize}">ดาวน์</th>
-                            <th class="p-4 text-right" style="background-color:${hBgColor}; font-size:${hFontSize}">เงินดาวน์</th>
-                            <th class="p-4 text-right border-r" style="background-color:${hBgColor}; font-size:${hFontSize}">ยอดจัด</th>`;
+            let headHTML = `<th class="p-4 text-left table-sticky-column border-r min-w-[200px]" style="background-color:${colorBg}; font-size:${sizeH}">รายละเอียดรุ่น</th>
+                            <th class="p-4 text-right" style="background-color:${colorBg}; font-size:${sizeH}">ราคา</th>
+                            <th class="p-4 text-center" style="background-color:${colorBg}; font-size:${sizeH}">ดาวน์</th>
+                            <th class="p-4 text-right" style="background-color:${colorBg}; font-size:${sizeH}">เงินดาวน์</th>
+                            <th class="p-4 text-right border-r" style="background-color:${colorBg}; font-size:${sizeH}">ยอดจัด</th>`;
             
             activeTerms.forEach(t => { 
-                headHTML += `<th class="p-4 text-right" style="background-color:${hBgColor}; font-size:${hFontSize}">${t} งวด</th>`; 
+                headHTML += `<th class="p-4 text-right" style="background-color:${colorBg}; font-size:${sizeH}">${t} งวด</th>`; 
             });
             headRow.innerHTML = headHTML;
 
@@ -510,20 +503,20 @@
                     const downAmt = car.price * (downP / 100);
                     const loanAmt = car.price - downAmt;
                     const tr = document.createElement('tr');
-                    tr.style.fontWeight = dWeight;
+                    tr.style.fontWeight = weightD;
                     
                     if (index === 0 && i !== 0) tr.classList.add('border-t-4', 'border-slate-100');
                     
-                    let html = index === 0 ? `<td class="p-4 table-sticky-column border-r align-top bg-white font-bold" rowspan="${downList.length}" style="font-size:${dFontSize}">${car.model}</td><td class="p-4 text-right font-bold align-top bg-white" rowspan="${downList.length}" style="font-size:${dFontSize}">${formatCurrency(car.price)}</td>` : '';
+                    let html = index === 0 ? `<td class="p-4 table-sticky-column border-r align-top bg-white font-bold" rowspan="${downList.length}" style="font-size:${sizeD}">${car.model}</td><td class="p-4 text-right font-bold align-top bg-white" rowspan="${downList.length}" style="font-size:${sizeD}">${formatCurrency(car.price)}</td>` : '';
                     
-                    html += `<td class="p-4 text-center text-slate-400 font-bold" style="font-size:${dFontSize}">${downP}%</td>
-                             <td class="p-4 text-right text-slate-500" style="font-size:${dFontSize}">${formatCurrency(downAmt)}</td>
-                             <td class="p-4 text-right font-bold border-r text-blue-600" style="font-size:${dFontSize}">${formatCurrency(loanAmt)}</td>`;
+                    html += `<td class="p-4 text-center text-slate-400 font-bold" style="font-size:${sizeD}">${downP}%</td>
+                             <td class="p-4 text-right text-slate-500" style="font-size:${sizeD}">${formatCurrency(downAmt)}</td>
+                             <td class="p-4 text-right font-bold border-r text-blue-600" style="font-size:${sizeD}">${formatCurrency(loanAmt)}</td>`;
                     
                     activeTerms.forEach(t => {
                         const rate = getRateForDown(downP, t);
                         const monthly = (loanAmt + (loanAmt * (rate/100) * (t/12))) / t;
-                        html += `<td class="p-4 text-right font-extrabold" style="font-size:${dFontSize}">${formatCurrency(monthly)}</td>`;
+                        html += `<td class="p-4 text-right font-extrabold text-slate-900" style="font-size:${sizeD}">${formatCurrency(monthly)}</td>`;
                     });
                     
                     tr.innerHTML = html;
